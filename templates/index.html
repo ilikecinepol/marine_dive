@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gyroscope Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            color: #333;
+        }
+        .data-box {
+            margin: 20px;
+            padding: 20px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            display: inline-block;
+        }
+    </style>
+    <script>
+        function fetchData() {
+            // Выполняем AJAX-запрос на эндпоинт /data
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    // Обновляем три переменные на странице
+                    document.getElementById('gx').innerText = data.var1;  // gx
+                    document.getElementById('gy').innerText = data.var2;  // gy
+                    document.getElementById('gz').innerText = data.var3;  // gz
+                });
+        }
+
+        // Обновляем данные каждые 100 мс (для минимальной задержки)
+        setInterval(fetchData, 100);
+    </script>
+</head>
+<body>
+    <h1>Gyroscope Data</h1>
+    <div class="data-box">
+        <p><strong>Gyroscope X (gx):</strong> <span id="gx">N/A</span></p>
+        <p><strong>Gyroscope Y (gy):</strong> <span id="gy">N/A</span></p>
+        <p><strong>Gyroscope Z (gz):</strong> <span id="gz">N/A</span></p>
+    </div>
+</body>
+</html>
