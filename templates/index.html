@@ -2,16 +2,14 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление роботом</title>
+    <title>Управление роботом с индикатором</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap'); /* Импорт шрифта */
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap');
 
-        /* Установка фона для всей страницы */
         body {
-            font-family: 'Orbitron', sans-serif; /* Шрифт в стиле GTA */
-            background-image: url('/static/scale.jpg'); /* Фоновое изображение */
+            font-family: 'Orbitron', sans-serif;
+            background-image: url('/static/scale.jpg');
             background-size: cover;
             background-position: center;
             margin: 0;
@@ -24,70 +22,35 @@
             color: #fff;
         }
 
-        /* Оформление заголовка */
         h1 {
-            font-size: 60px; /* Сделаем заголовок больше */
-            text-shadow: 0 0 10px #00ffcc, 0 0 20px #00ffcc, 0 0 40px #00ffcc; /* Неоновое свечение */
+            font-size: 60px;
+            text-shadow: 0 0 10px #00ffcc, 0 0 20px #00ffcc, 0 0 40px #00ffcc;
             margin-bottom: 20px;
             letter-spacing: 3px;
-            font-weight: 900; /* Толщина шрифта для большего эффекта */
+            font-weight: 900;
         }
 
-        /* Оформление контейнера для управления */
         .controls {
             width: 80%;
             max-width: 600px;
             margin: 20px auto;
             padding: 20px;
-            background: rgba(0, 0, 0, 0.7); /* Полупрозрачный черный фон */
+            background: rgba(0, 0, 0, 0.7);
             border-radius: 15px;
             box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
         }
 
-        /* Стили для данных гироскопа */
-        .gyro-data {
-            margin-bottom: 20px;
+        canvas {
+            margin-top: 20px;
         }
 
-        /* Заполнитель для видеосигнала */
-        .video-placeholder {
-            width: 300px;
-            height: 200px;
-            background-color: #222;
-            color: #666;
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-            border-radius: 10px;
-            border: 2px solid #00ffcc;
-        }
-
-        /* Оформление слайдеров */
         input[type="range"] {
-            -webkit-appearance: none;
-            appearance: none;
             width: 100%;
-            height: 15px;
-            background: #333;
-            outline: none;
-            opacity: 0.7;
-            transition: opacity .2s;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 25px;
-            height: 25px;
-            background: #00ffcc;
-            cursor: pointer;
-            border-radius: 50%;
+            margin: 10px 0;
         }
 
         label, span {
-            font-size: 22px; /* Размер шрифта чуть больше */
+            font-size: 22px;
             color: #00ffcc;
             margin-right: 10px;
             text-shadow: 0 0 5px #00ffcc;
@@ -101,7 +64,6 @@
             border-radius: 5px;
             font-size: 20px;
             font-weight: bold;
-            text-shadow: 0 0 5px #00ffcc;
             cursor: pointer;
             transition: background-color 0.3s ease;
         }
@@ -109,80 +71,121 @@
         button:hover {
             background-color: #009999;
         }
-
-        #gyro-values {
-            font-size: 18px;
-            color: #fff;
-        }
     </style>
 </head>
 <body>
-    <h1>Управление роботом</h1>
 
-    <!-- Заполнитель для видеосигнала -->
-    <div class="video-placeholder">
-        Здесь будет видеосигнал
-    </div>
+<h1>Управление роботом</h1>
 
-    <!-- Данные гироскопа -->
-    <div class="gyro-data">
-        <h2>Данные гироскопа</h2>
-        <p id="gyro-values">X: 0.00, Y: 0.00, Z: 0.00</p>
-    </div>
+<div class="video-placeholder">
+    Здесь будет видеосигнал
+</div>
 
-    <!-- Управление помпами -->
-    <div class="controls">
-        <label for="pump1">Помпа 1:</label>
-        <input type="range" id="pump1" min="-100" max="100" step="5" value="0">
-        <span id="pump1_value">0%</span>
-        <br><br>
+<div class="gyro-data">
+    <h2>Данные гироскопа</h2>
+    <p id="gyro-values">X: 0.00, Y: 0.00, Z: 0.00</p>
+</div>
 
-        <label for="pump2">Помпа 2:</label>
-        <input type="range" id="pump2" min="-100" max="100" step="5" value="0">
-        <span id="pump2_value">0%</span>
-        <br><br>
+<canvas id="horizonCanvas" width="300" height="300"></canvas>
 
-        <button onclick="stopAll()">Остановить все помпы</button>
-    </div>
+<div class="controls">
+    <label for="pump1">Помпа 1:</label>
+    <input type="range" id="pump1" min="-100" max="100" step="5" value="0">
+    <span id="pump1_value">0%</span>
+    <br><br>
 
-    <script>
-        // Функция для обновления данных гироскопа
-        function updateGyroData() {
-            fetch('/gyro')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('gyro-values').innerText = 
-                    `X: ${data.gx.toFixed(2)}, Y: ${data.gy.toFixed(2)}, Z: ${data.gz.toFixed(2)}`;
-            });
-        }
+    <label for="pump2">Помпа 2:</label>
+    <input type="range" id="pump2" min="-100" max="100" step="5" value="0">
+    <span id="pump2_value">0%</span>
+    <br><br>
 
-        // Функция для отправки данных управления помпами
-        function sendPumpData() {
-            const pump1Speed = document.getElementById('pump1').value;
-            const pump2Speed = document.getElementById('pump2').value;
-            document.getElementById('pump1_value').innerText = `${pump1Speed}%`;
-            document.getElementById('pump2_value').innerText = `${pump2Speed}%`;
+    <button onclick="stopAll()">Остановить все помпы</button>
+</div>
 
-            fetch('/control', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pump1_speed: pump1Speed, pump2_speed: pump2Speed })
-            });
-        }
+<script>
+    // Функция для обновления данных гироскопа
+    function updateGyroData() {
+        fetch('/gyro')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('gyro-values').innerText = 
+                `X: ${data.gx.toFixed(2)}, Y: ${data.gy.toFixed(2)}, Z: ${data.gz.toFixed(2)}`;
 
-        // Функция для остановки всех помп
-        function stopAll() {
-            document.getElementById('pump1').value = 0;
-            document.getElementById('pump2').value = 0;
-            sendPumpData();
-        }
+            drawHorizon(data.gy, data.gz);  // Обновляем прибор акселерометра
+        });
+    }
 
-        // Обработчики для ползунков
-        document.getElementById('pump1').addEventListener('input', sendPumpData);
-        document.getElementById('pump2').addEventListener('input', sendPumpData);
+    // Рисование авиагоризонта
+    function drawHorizon(pitch, roll) {
+        const canvas = document.getElementById('horizonCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
 
-        // Обновляем данные гироскопа каждые 500 мс
-        setInterval(updateGyroData, 500);
-    </script>
+        const horizonHeight = 100;
+
+        // Рисуем небо (голубое)
+        ctx.fillStyle = '#87CEEB';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 150, Math.PI, Math.PI * 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // Рисуем землю (коричневое)
+        ctx.fillStyle = '#8B4513';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 150, 0, Math.PI);
+        ctx.closePath();
+        ctx.fill();
+
+        // Рисуем горизонтальную линию
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(50, centerY);
+        ctx.lineTo(250, centerY);
+        ctx.stroke();
+
+        // Имитация крена и тангажа
+        ctx.translate(centerX, centerY);
+        ctx.rotate(roll * Math.PI / 180);  // Вращение по крену
+        ctx.translate(-centerX, -centerY);
+
+        // Отображаем тангаж
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '20px Orbitron';
+        ctx.fillText(`Pitch: ${pitch.toFixed(2)}`, 90, 280);
+        ctx.fillText(`Roll: ${roll.toFixed(2)}`, 90, 300);
+    }
+
+    // Обновляем данные гироскопа каждые 500 мс
+    setInterval(updateGyroData, 500);
+
+    function stopAll() {
+        document.getElementById('pump1').value = 0;
+        document.getElementById('pump2').value = 0;
+        sendPumpData();
+    }
+
+    function sendPumpData() {
+        const pump1Speed = document.getElementById('pump1').value;
+        const pump2Speed = document.getElementById('pump2').value;
+        document.getElementById('pump1_value').innerText = `${pump1Speed}%`;
+        document.getElementById('pump2_value').innerText = `${pump2Speed}%`;
+
+        fetch('/control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pump1_speed: pump1Speed, pump2_speed: pump2Speed })
+        });
+    }
+
+    document.getElementById('pump1').addEventListener('input', sendPumpData);
+    document.getElementById('pump2').addEventListener('input', sendPumpData);
+</script>
+
 </body>
 </html>
