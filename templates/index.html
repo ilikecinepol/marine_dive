@@ -1,49 +1,182 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gyroscope Data</title>
+    <title>Управление роботом - GTA 5 Стиль</title>
     <style>
+        /* Фон с градиентом в стиле GTA 5 */
         body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f4f4f4;
-        }
-        h1 {
-            color: #333;
-        }
-        .data-box {
-            margin: 20px;
-            padding: 20px;
-            background-color: #fff;
-            border: 1px solid #ccc;
-            display: inline-block;
-        }
-    </style>
-    <script>
-        function fetchData() {
-            // Выполняем AJAX-запрос на эндпоинт /data
-            fetch('/data')
-                .then(response => response.json())
-                .then(data => {
-                    // Обновляем три переменные на странице
-                    document.getElementById('gx').innerText = data.var1;  // gx
-                    document.getElementById('gy').innerText = data.var2;  // gy
-                    document.getElementById('gz').innerText = data.var3;  // gz
-                });
+            font-family: 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #0b0b0b, #1e1e1e);
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
         }
 
-        // Обновляем данные каждые 100 мс (для минимальной задержки)
-        setInterval(fetchData, 100);
-    </script>
+        /* Заголовок с неоновым свечением */
+        h1 {
+            font-size: 48px;
+            text-shadow: 0 0 10px #00ffcc, 0 0 20px #00ffcc, 0 0 30px #00ffcc;
+            margin-bottom: 20px;
+        }
+
+        /* Метки и слайдеры в стиле GTA */
+        label, span {
+            font-size: 20px;
+            color: #00ffcc;
+            margin-right: 10px;
+        }
+
+        /* Слайдеры для помп с современным дизайном */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 15px;
+            background: #333;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 25px;
+            height: 25px;
+            background: #00ffcc;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        /* Контейнер для управления */
+        .controls {
+            width: 80%;
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+        }
+
+        /* Данные гироскопа */
+        .gyro-data {
+            margin-bottom: 20px;
+        }
+
+        /* Заполнитель для видеосигнала */
+        .video-placeholder {
+            width: 300px;
+            height: 200px;
+            background-color: #222;
+            color: #666;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            border: 2px solid #00ffcc;
+        }
+
+        /* Стиль кнопки */
+        button {
+            padding: 10px 20px;
+            background-color: #00ffcc;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #009999;
+        }
+
+        /* Стиль вывода данных гироскопа */
+        #gyro-values {
+            font-size: 18px;
+            color: #fff;
+        }
+    </style>
 </head>
 <body>
-    <h1>Gyroscope Data</h1>
-    <div class="data-box">
-        <p><strong>Gyroscope X (gx):</strong> <span id="gx">N/A</span></p>
-        <p><strong>Gyroscope Y (gy):</strong> <span id="gy">N/A</span></p>
-        <p><strong>Gyroscope Z (gz):</strong> <span id="gz">N/A</span></p>
+    <h1>Управление роботом</h1>
+
+    <!-- Заполнитель для будущего видеопотока -->
+    <div class="video-placeholder">
+        Здесь будет видеосигнал
     </div>
+
+    <!-- Данные гироскопа -->
+    <div class="gyro-data">
+        <h2>Данные гироскопа</h2>
+        <p id="gyro-values">X: N/A, Y: N/A, Z: N/A</p>
+    </div>
+
+    <!-- Управление помпами -->
+    <div class="controls">
+        <label for="pump1">Помпа 1:</label>
+        <input type="range" id="pump1" min="-100" max="100" step="5" value="0">
+        <span id="pump1_value">0%</span>
+        <br><br>
+
+        <label for="pump2">Помпа 2:</label>
+        <input type="range" id="pump2" min="-100" max="100" step="5" value="0">
+        <span id="pump2_value">0%</span>
+        <br><br>
+
+        <button onclick="stopAll()">Остановить все помпы</button>
+    </div>
+
+    <script>
+        // Функция для обновления данных гироскопа
+        function updateGyroData() {
+            fetch('/gyro')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('gyro-values').innerText = 
+                    `X: ${data.gx || 'N/A'}, Y: ${data.gy || 'N/A'}, Z: ${data.gz || 'N/A'}`;
+            });
+        }
+
+        // Функция для отправки данных управления помпами
+        function sendPumpData() {
+            const pump1Speed = document.getElementById('pump1').value;
+            const pump2Speed = document.getElementById('pump2').value;
+            document.getElementById('pump1_value').innerText = `${pump1Speed}%`;
+            document.getElementById('pump2_value').innerText = `${pump2Speed}%`;
+
+            fetch('/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pump1_speed: pump1Speed, pump2_speed: pump2Speed })
+            });
+        }
+
+        // Функция для остановки всех помп
+        function stopAll() {
+            document.getElementById('pump1').value = 0;
+            document.getElementById('pump2').value = 0;
+            sendPumpData();
+        }
+
+        // Обработчики для ползунков
+        document.getElementById('pump1').addEventListener('input', sendPumpData);
+        document.getElementById('pump2').addEventListener('input', sendPumpData);
+
+        // Обновляем данные гироскопа каждые 500 мс
+        setInterval(updateGyroData, 500);
+    </script>
 </body>
 </html>
