@@ -1,8 +1,8 @@
 import serial
 from flask import Flask, render_template, jsonify, request
 
-# Настройка последовательного порта
-ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)  # Укажите правильный последовательный порт
+# Настройка последовательного порта (замени '/dev/ttyUSB0' на свой порт)
+ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
 
 app = Flask(__name__)
 
@@ -12,9 +12,6 @@ def index():
 
 @app.route('/control', methods=['POST'])
 def control():
-    """
-    Принимаем команды для управления помпами
-    """
     data = request.json
     pump1_speed = data.get('pump1_speed')
     pump2_speed = data.get('pump2_speed')
@@ -31,34 +28,15 @@ def control():
 
 @app.route('/gyro')
 def gyro():
-    """
-    Возвращаем данные гироскопа
-    """
     if ser.in_waiting > 0:
         try:
-            # Чтение данных с гироскопа
             gyro_data = ser.readline().decode('utf-8').strip()
-            # Разделим данные на три компонента
-            gx, gy, gz = parse_gyro_data(gyro_data)
+            gx, gy, gz = map(float, gyro_data.split(','))  # Разделение данных
             return jsonify({'gx': gx, 'gy': gy, 'gz': gz})
         except Exception as e:
             print(f"Ошибка чтения данных: {e}")
             return jsonify({'gx': 'N/A', 'gy': 'N/A', 'gz': 'N/A'})
     return jsonify({'gx': 'N/A', 'gy': 'N/A', 'gz': 'N/A'})
-
-def parse_gyro_data(gyro_data):
-    """
-    Преобразование строки с гироскопическими данными в три компонента
-    Пример входных данных: "Gx: 0.73 Gy: 0.11 Gz: 0.07"
-    """
-    try:
-        data = gyro_data.split()
-        gx = data[1] if len(data) > 1 else 'N/A'
-        gy = data[3] if len(data) > 3 else 'N/A'
-        gz = data[5] if len(data) > 5 else 'N/A'
-        return gx, gy, gz
-    except:
-        return 'N/A', 'N/A', 'N/A'
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000, debug=True)
