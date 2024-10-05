@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление роботом с индикатором</title>
+    <title>Управление роботом с авиагоризонтом</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap');
 
@@ -42,6 +42,8 @@
 
         canvas {
             margin-top: 20px;
+            border: 3px solid #00ffcc;
+            border-radius: 50%;
         }
 
         input[type="range"] {
@@ -77,15 +79,12 @@
 
 <h1>Управление роботом</h1>
 
-<div class="video-placeholder">
-    Здесь будет видеосигнал
-</div>
-
 <div class="gyro-data">
     <h2>Данные гироскопа</h2>
-    <p id="gyro-values">X: 0.00, Y: 0.00, Z: 0.00</p>
+    <p id="gyro-values">X: 0.00, Y: 0.00</p>
 </div>
 
+<!-- Канвас для авиагоризонта -->
 <canvas id="horizonCanvas" width="300" height="300"></canvas>
 
 <div class="controls">
@@ -109,9 +108,9 @@
         .then(response => response.json())
         .then(data => {
             document.getElementById('gyro-values').innerText = 
-                `X: ${data.gx.toFixed(2)}, Y: ${data.gy.toFixed(2)}, Z: ${data.gz.toFixed(2)}`;
+                `X: ${data.gx.toFixed(2)}, Y: ${data.gy.toFixed(2)}`;
 
-            drawHorizon(data.gy, data.gz);  // Обновляем прибор акселерометра
+            drawHorizon(data.gy, data.gx);  // Обновляем прибор крена и тангажа
         });
     }
 
@@ -120,49 +119,50 @@
         const canvas = document.getElementById('horizonCanvas');
         const ctx = canvas.getContext('2d');
         
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
+        const radius = centerX;
 
-        const horizonHeight = 100;
+        // Очищаем предыдущий кадр
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Рисуем небо (голубое)
+        // Определяем координаты для земли и неба (вращение и смещение по тангажу)
+        const rollAngle = roll * Math.PI / 180;
+        const pitchShift = pitch * 2;  // Чем больше множитель, тем быстрее движение вверх-вниз
+
+        // Рисуем небо
+        ctx.save();
+        ctx.translate(centerX, centerY + pitchShift);
+        ctx.rotate(rollAngle);
         ctx.fillStyle = '#87CEEB';
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 150, Math.PI, Math.PI * 2);
-        ctx.closePath();
+        ctx.arc(0, 0, radius, Math.PI, 2 * Math.PI);
         ctx.fill();
-
-        // Рисуем землю (коричневое)
+        
+        // Рисуем землю
         ctx.fillStyle = '#8B4513';
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 150, 0, Math.PI);
-        ctx.closePath();
+        ctx.arc(0, 0, radius, 0, Math.PI);
         ctx.fill();
+        ctx.restore();
 
-        // Рисуем горизонтальную линию
+        // Рисуем белую горизонтальную линию
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(50, centerY);
-        ctx.lineTo(250, centerY);
+        ctx.moveTo(centerX - radius, centerY);
+        ctx.lineTo(centerX + radius, centerY);
         ctx.stroke();
 
-        // Имитация крена и тангажа
-        ctx.translate(centerX, centerY);
-        ctx.rotate(roll * Math.PI / 180);  // Вращение по крену
-        ctx.translate(-centerX, -centerY);
-
-        // Отображаем тангаж
+        // Рисуем метки тангажа
+        ctx.font = '14px Orbitron';
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '20px Orbitron';
-        ctx.fillText(`Pitch: ${pitch.toFixed(2)}`, 90, 280);
-        ctx.fillText(`Roll: ${roll.toFixed(2)}`, 90, 300);
+        ctx.fillText(`Pitch: ${pitch.toFixed(2)}°`, centerX - 40, centerY + radius - 10);
+        ctx.fillText(`Roll: ${roll.toFixed(2)}°`, centerX - 40, centerY + radius + 10);
     }
 
-    // Обновляем данные гироскопа каждые 500 мс
-    setInterval(updateGyroData, 500);
+    // Обновляем данные гироскопа каждые 300 мс
+    setInterval(updateGyroData, 300);
 
     function stopAll() {
         document.getElementById('pump1').value = 0;
