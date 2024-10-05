@@ -4,12 +4,14 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление роботом - GTA 5 Стиль</title>
+    <title>Управление роботом</title>
     <style>
-        /* Стиль body, добавление фонового изображения */
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap'); /* Импорт шрифта */
+
+        /* Установка фона для всей страницы */
         body {
-            font-family: 'Helvetica Neue', sans-serif;
-            background-image: url('/static/scale.jpg');
+            font-family: 'Orbitron', sans-serif; /* Шрифт в стиле GTA */
+            background-image: url('/static/scale.jpg'); /* Фоновое изображение */
             background-size: cover;
             background-position: center;
             margin: 0;
@@ -19,72 +21,105 @@
             align-items: center;
             justify-content: center;
             height: 100vh;
+            color: #fff;
         }
 
-        /* Заголовок с неоновым свечением */
+        /* Оформление заголовка */
         h1 {
-            font-size: 48px;
-            text-shadow: 0 0 10px #00ffcc, 0 0 20px #00ffcc, 0 0 30px #00ffcc;
+            font-size: 60px; /* Сделаем заголовок больше */
+            text-shadow: 0 0 10px #00ffcc, 0 0 20px #00ffcc, 0 0 40px #00ffcc; /* Неоновое свечение */
             margin-bottom: 20px;
-            color: #00ffcc;
+            letter-spacing: 3px;
+            font-weight: 900; /* Толщина шрифта для большего эффекта */
         }
 
-        /* Стиль блока управления */
+        /* Оформление контейнера для управления */
         .controls {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 30px;
+            width: 80%;
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.7); /* Полупрозрачный черный фон */
             border-radius: 15px;
             box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
-            width: 60%;
-            max-width: 600px;
         }
 
-        /* Стиль видео-заполнителя */
+        /* Стили для данных гироскопа */
+        .gyro-data {
+            margin-bottom: 20px;
+        }
+
+        /* Заполнитель для видеосигнала */
         .video-placeholder {
-            background-color: #222;
-            width: 100%;
+            width: 300px;
             height: 200px;
+            background-color: #222;
+            color: #666;
+            font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 20px;
             border-radius: 10px;
             border: 2px solid #00ffcc;
-            color: #666;
         }
 
-        /* Стиль данных гироскопа */
-        .gyro-data {
-            margin-bottom: 20px;
-            color: #fff;
-            text-align: center;
-        }
-
-        /* Стиль слайдеров */
-        label {
-            color: #00ffcc;
-            font-size: 20px;
-        }
+        /* Оформление слайдеров */
         input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
             width: 100%;
-            margin-bottom: 20px;
+            height: 15px;
+            background: #333;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 25px;
+            height: 25px;
+            background: #00ffcc;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        label, span {
+            font-size: 22px; /* Размер шрифта чуть больше */
+            color: #00ffcc;
+            margin-right: 10px;
+            text-shadow: 0 0 5px #00ffcc;
         }
 
         button {
-            background-color: #00ffcc;
-            border: none;
             padding: 10px 20px;
-            border-radius: 5px;
-            font-size: 18px;
+            background-color: #00ffcc;
             color: #000;
+            border: none;
+            border-radius: 5px;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #00ffcc;
             cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #009999;
+        }
+
+        #gyro-values {
+            font-size: 18px;
+            color: #fff;
         }
     </style>
 </head>
 <body>
     <h1>Управление роботом</h1>
 
-    <!-- Видео-заполнитель -->
+    <!-- Заполнитель для видеосигнала -->
     <div class="video-placeholder">
         Здесь будет видеосигнал
     </div>
@@ -100,12 +135,12 @@
         <label for="pump1">Помпа 1:</label>
         <input type="range" id="pump1" min="-100" max="100" step="5" value="0">
         <span id="pump1_value">0%</span>
-        <br>
+        <br><br>
 
         <label for="pump2">Помпа 2:</label>
         <input type="range" id="pump2" min="-100" max="100" step="5" value="0">
         <span id="pump2_value">0%</span>
-        <br>
+        <br><br>
 
         <button onclick="stopAll()">Остановить все помпы</button>
     </div>
@@ -117,7 +152,7 @@
             .then(response => response.json())
             .then(data => {
                 document.getElementById('gyro-values').innerText = 
-                    `X: ${data.gx || 'N/A'}, Y: ${data.gy || 'N/A'}, Z: ${data.gz || 'N/A'}`;
+                    `X: ${data.gx.toFixed(2)}, Y: ${data.gy.toFixed(2)}, Z: ${data.gz.toFixed(2)}`;
             });
         }
 
