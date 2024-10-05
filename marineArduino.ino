@@ -5,7 +5,7 @@
 MPU6050 mpu;
 int16_t ax, ay, az;
 int16_t gx, gy, gz;
-float alpha = 0.5;  // Коэффициент сглаживания для фильтрации
+float alpha = 0.05;  // Коэффициент сглаживания для фильтрации
 Servo motor;
 
 const int ENA = 3;  // ШИМ для первой помпы
@@ -29,15 +29,14 @@ void setup() {
     Serial.println("MPU6050 подключен");
   } else {
     Serial.println("Ошибка подключения к MPU6050");
-    while (1)
-      ;  // Остановить, если датчик не подключен
+    while (1);  // Остановить, если датчик не подключен
   }
 
   // Калибровка датчика (установка нулей)
   calibrateMPU();
 
   // Настройка цифрового фильтра (DLPF)
-  mpu.setDLPFMode(10);  // Установка фильтра с частотой 5 Гц
+  mpu.setDLPFMode(6);  // Установка фильтра с частотой 5 Гц
 
   motor.attach(11);
   motor.writeMicroseconds(2300);
@@ -86,11 +85,10 @@ void loop() {
   filtered_gz = (alpha * gz) + ((1 - alpha) * filtered_gz);
 
   // Отправка данных по Serial
-  Serial.print("Gx: ");
   Serial.print(filtered_gx);
-  Serial.print(" Gy: ");
+  Serial.print(",");
   Serial.print(filtered_gy);
-  Serial.print(" Gz: ");
+  Serial.print(",");
   Serial.println(filtered_gz);
 
   motor.writeMicroseconds(1000);
