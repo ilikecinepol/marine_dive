@@ -14,24 +14,141 @@ from picamera2.outputs import FileOutput
 ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
 
 PAGE = """\
-
-<html>
+<!DOCTYPE html>
+<html lang="ru">
 <head>
-<title>Picamera2 MJPEG Streaming Demo with Gyroscope</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MARINE DIVE</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap');
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-image: url('/static/scale.jpg');
+            background-size: cover;
+            background-position: center;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #fff;
+        }
+
+        h1 {
+            font-size: 60px;
+            text-shadow: 0 0 10px #00ffcc, 0 0 20px #00ffcc, 0 0 40px #00ffcc;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+            font-weight: 900;
+        }
+
+        .container {
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+            max-width: 1200px;
+        }
+
+        .video-placeholder {
+            width: 640px;
+            height: 480px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+            text-align: center;
+            color: #fff;
+            padding: 10px;
+        }
+
+        canvas {
+            width: 300px;
+            height: 300px;
+        }
+
+        .controls {
+            width: 80%;
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+            text-align: center;
+        }
+
+        input[type="range"] {
+            width: 80%;
+            margin: 10px 0;
+        }
+
+        label, span {
+            font-size: 22px;
+            color: #00ffcc;
+            margin-right: 10px;
+            text-shadow: 0 0 5px #00ffcc;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #00ffcc;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #009999;
+        }
+    </style>
+</head>
+<body>
+
+<h1>MARINE DIVE</h1>
+
+<div class="container">
+    <!-- Видеопоток -->
+    <div class="video-placeholder">
+        <img src="/stream.mjpg" width="640" height="480" alt="Видеопоток" />
+    </div>
+
+    <!-- Шкала крена и тангажа -->
+    <canvas id="horizonCanvas" width="300" height="300"></canvas>
+</div>
+
+<!-- Элементы управления помпами -->
+<div class="controls">
+    <label for="pump1">Помпа 1:</label>
+    <input type="range" id="pump1" min="-100" max="100" step="5" value="0">
+    <span id="pump1_value">0%</span>
+    <br><br>
+
+    <label for="pump2">Помпа 2:</label>
+    <input type="range" id="pump2" min="-100" max="100" step="5" value="0">
+    <span id="pump2_value">0%</span>
+    <br><br>
+
+    <button onclick="stopAll()">Остановить все помпы</button>
+</div>
+
 <script>
+    // Функция для обновления данных гироскопа
     function updateGyroData() {
         fetch('/gyro')
         .then(response => response.json())
         .then(data => {
-            document.getElementById('gyro').innerText = 
-                'Gyro X: ' + data.gx + ', Gyro Y: ' + data.gy;
-            drawHorizon(data.gy, data.gx);  // Обновляем отображение тангажа и крена
+            drawHorizon(data.gy, data.gx);  // Обновляем прибор тангажа и крена
         });
     }
 
-    setInterval(updateGyroData, 100);  // Обновление каждые 100 мс
-
-    // Рисуем шкалу тангажа и крена с вертикальной линией
+    // Рисование авиагоризонта с неподвижным кругом и движущейся шкалой тангажа
     function drawHorizon(pitch, roll) {
         const canvas = document.getElementById('horizonCanvas');
         const ctx = canvas.getContext('2d');
@@ -41,71 +158,86 @@ PAGE = """\
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
 
-        // Рисуем крен (наклон круга)
+        // Размеры горизонта
+        const horizonHeight = 80;
+        const horizonWidth = 150;
+
+        // Рисуем половину круга "море"
         ctx.save();
         ctx.translate(centerX, centerY);
-        ctx.rotate(-roll * Math.PI / 180);  // Крен – поворот круга
+        ctx.rotate(-roll * Math.PI / 180);  // Инвертируем крен
         ctx.translate(-centerX, -centerY);
 
-        // Рисуем "небо"
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 150, 0, Math.PI, true);  
+        ctx.arc(centerX, centerY, 150, 0, Math.PI, true);  // Половина круга для моря
         ctx.closePath();
-        ctx.fillStyle = '#1E90FF';  // Цвет неба (синий)
+        ctx.fillStyle = '#1E90FF';  // Цвет моря (темно-синий)
         ctx.fill();
 
-        // Рисуем "землю"
+        // Рисуем половину круга "дно"
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 150, 0, Math.PI, false);  
+        ctx.arc(centerX, centerY, 150, 0, Math.PI, false);  // Половина круга для дна
         ctx.closePath();
-        ctx.fillStyle = '#654321';  // Цвет земли (коричневый)
+        ctx.fillStyle = '#654321';  // Цвет дна (коричневый)
         ctx.fill();
 
         ctx.restore();
 
-        // Тангаж – смещение горизонта по вертикали
-        const offsetY = pitch * 2;
+        // Рисуем неподвижную белую линию горизонта, движущуюся в зависимости от тангажа (pitch)
+        const offsetY = pitch * 2;  // Смещение по тангажу
 
-        // Линия горизонта
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(centerX - 150, centerY + offsetY);
-        ctx.lineTo(centerX + 150, centerY + offsetY);
+        ctx.moveTo(centerX - horizonWidth, centerY + offsetY);  // Линия вверх-вниз при изменении тангажа
+        ctx.lineTo(centerX + horizonWidth, centerY + offsetY);
         ctx.stroke();
 
-        // Вертикальная шкала тангажа
-        const tickLength = 10;
+        // Шкала тангажа с числами
         for (let i = -90; i <= 90; i += 10) {
-            const y = centerY + i * 2;
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
+            const tickY = centerY + offsetY + i * 2;
             ctx.beginPath();
-            ctx.moveTo(centerX - tickLength, y + offsetY);
-            ctx.lineTo(centerX + tickLength, y + offsetY);
+            ctx.moveTo(centerX - 10, tickY);
+            ctx.lineTo(centerX + 10, tickY);
             ctx.stroke();
 
-            // Рисуем метки
-            ctx.font = '12px Arial';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(i, centerX + tickLength + 5, y + offsetY + 3);
+            // Добавляем числа на шкалу тангажа
+            if (i % 30 === 0) {
+                ctx.font = '14px Orbitron';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(`${i}`, centerX + 15, tickY + 5);
+            }
         }
     }
+
+    // Обновляем данные гироскопа каждые 100 мс
+    setInterval(updateGyroData, 100);
+
+    function stopAll() {
+        document.getElementById('pump1').value = 0;
+        document.getElementById('pump2').value = 0;
+        sendPumpData();
+    }
+
+    function sendPumpData() {
+        const pump1Speed = document.getElementById('pump1').value;
+        const pump2Speed = document.getElementById('pump2').value;
+        document.getElementById('pump1_value').innerText = `${pump1Speed}%`;
+        document.getElementById('pump2_value').innerText = `${pump2Speed}%`;
+
+        fetch('/control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pump1_speed: pump1Speed, pump2_speed: pump2Speed })
+        });
+    }
+
+    document.getElementById('pump1').addEventListener('input', sendPumpData);
+    document.getElementById('pump2').addEventListener('input', sendPumpData);
 </script>
-</head>
-<body>
-<h1>Picamera2 MJPEG Streaming Demo with Gyroscope</h1>
-<img src="stream.mjpg" width="640" height="480" />
-
-<h2>Gyroscope Readings</h2>
-<p id="gyro">Gyro X: N/A, Gyro Y: N/A</p>
-
-<!-- Канвас для отображения крена и тангажа -->
-<canvas id="horizonCanvas" width="300" height="300"></canvas>
 
 </body>
 </html>
-
 
 """
 
