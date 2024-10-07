@@ -16,7 +16,7 @@ ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
 PAGE = """\
 <html>
 <head>
-<title>picamera2 MJPEG streaming demo with Gyroscope</title>
+<title>Picamera2 MJPEG Streaming Demo with Gyroscope</title>
 <script>
     function updateGyroData() {
         fetch('/gyro')
@@ -24,19 +24,70 @@ PAGE = """\
         .then(data => {
             document.getElementById('gyro').innerText = 
                 'Gyro X: ' + data.gx + ', Gyro Y: ' + data.gy;
+            drawHorizon(data.gy, data.gx);  // Обновляем отображение тангажа и крена
         });
     }
 
-    setInterval(updateGyroData, 500); // Обновление каждые 500мс
+    setInterval(updateGyroData, 50);  // Обновление каждые 500 мс
+
+    // Рисуем шкалу тангажа и крена
+    function drawHorizon(pitch, roll) {
+        const canvas = document.getElementById('horizonCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+
+        // Рисуем крен (наклон круга)
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(-roll * Math.PI / 180);  // Крен – поворот круга
+        ctx.translate(-centerX, -centerY);
+
+        // Рисуем "небо"
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 150, 0, Math.PI, true);  
+        ctx.closePath();
+        ctx.fillStyle = '#1E90FF';  // Цвет неба (синий)
+        ctx.fill();
+
+        // Рисуем "землю"
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 150, 0, Math.PI, false);  
+        ctx.closePath();
+        ctx.fillStyle = '#654321';  // Цвет земли (коричневый)
+        ctx.fill();
+
+        ctx.restore();
+
+        // Тангаж – смещение горизонта по вертикали
+        const offsetY = pitch * 2;
+
+        // Линия горизонта
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(centerX - 150, centerY + offsetY);
+        ctx.lineTo(centerX + 150, centerY + offsetY);
+        ctx.stroke();
+    }
 </script>
 </head>
 <body>
 <h1>Picamera2 MJPEG Streaming Demo with Gyroscope</h1>
 <img src="stream.mjpg" width="640" height="480" />
+
 <h2>Gyroscope Readings</h2>
 <p id="gyro">Gyro X: N/A, Gyro Y: N/A</p>
+
+<!-- Канвас для отображения крена и тангажа -->
+<canvas id="horizonCanvas" width="300" height="300"></canvas>
+
 </body>
 </html>
+
 """
 
 class StreamingOutput(io.BufferedIOBase):
