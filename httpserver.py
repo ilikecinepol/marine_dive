@@ -14,6 +14,7 @@ from picamera2.outputs import FileOutput
 ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
 
 PAGE = """\
+
 <html>
 <head>
 <title>Picamera2 MJPEG Streaming Demo with Gyroscope</title>
@@ -28,9 +29,9 @@ PAGE = """\
         });
     }
 
-    setInterval(updateGyroData, 50);  // Обновление каждые 500 мс
+    setInterval(updateGyroData, 100);  // Обновление каждые 100 мс
 
-    // Рисуем шкалу тангажа и крена
+    // Рисуем шкалу тангажа и крена с вертикальной линией
     function drawHorizon(pitch, roll) {
         const canvas = document.getElementById('horizonCanvas');
         const ctx = canvas.getContext('2d');
@@ -72,6 +73,23 @@ PAGE = """\
         ctx.moveTo(centerX - 150, centerY + offsetY);
         ctx.lineTo(centerX + 150, centerY + offsetY);
         ctx.stroke();
+
+        // Вертикальная шкала тангажа
+        const tickLength = 10;
+        for (let i = -90; i <= 90; i += 10) {
+            const y = centerY + i * 2;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(centerX - tickLength, y + offsetY);
+            ctx.lineTo(centerX + tickLength, y + offsetY);
+            ctx.stroke();
+
+            // Рисуем метки
+            ctx.font = '12px Arial';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(i, centerX + tickLength + 5, y + offsetY + 3);
+        }
     }
 </script>
 </head>
@@ -88,7 +106,9 @@ PAGE = """\
 </body>
 </html>
 
+
 """
+
 
 class StreamingOutput(io.BufferedIOBase):
     def __init__(self):
