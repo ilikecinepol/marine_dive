@@ -25,7 +25,7 @@ PAGE = """\
 
         body {
             font-family: 'Orbitron', sans-serif;
-            background-image: url('/static/scale.jpg'); /* Path to background image */
+            background-image: url('/static/scale.jpg');
             background-size: cover;
             background-position: center;
             margin: 0;
@@ -64,9 +64,33 @@ PAGE = """\
             padding: 10px;
         }
 
+        .canvas-wrapper {
+            position: relative;
+        }
+
         canvas {
             width: 300px;
             height: 300px;
+            border-radius: 50%; /* Ensure it's always a circle */
+        }
+
+        .depth-scale {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            width: 50px;
+            height: 300px;
+            background: linear-gradient(to bottom, #00ffff, #0000ff);
+            border-radius: 10px;
+        }
+
+        .depth-value {
+            position: absolute;
+            right: 70px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 24px;
+            color: #00ffff;
         }
 
         .controls {
@@ -107,6 +131,21 @@ PAGE = """\
         button:hover {
             background-color: #009999;
         }
+
+        /* Key highlighting */
+        .key {
+            display: inline-block;
+            padding: 15px;
+            border: 2px solid #00ffcc;
+            margin: 0 5px;
+            font-size: 20px;
+            color: #00ffcc;
+        }
+
+        .key.active {
+            background-color: #00ffcc;
+            color: #000;
+        }
     </style>
 </head>
 <body>
@@ -119,8 +158,14 @@ PAGE = """\
         <img src="/stream.mjpg" width="640" height="480" alt="Видеопоток" />
     </div>
 
-    <!-- Gyroscope canvas -->
-    <canvas id="horizonCanvas" width="300" height="300"></canvas>
+    <!-- Artificial Horizon + Depth Scale -->
+    <div class="canvas-wrapper">
+        <canvas id="horizonCanvas" width="300" height="300"></canvas>
+
+        <!-- Depth scale next to horizon -->
+        <div class="depth-scale"></div>
+        <div class="depth-value" id="depthValue">0 m</div>
+    </div>
 </div>
 
 <!-- Pump controls -->
@@ -136,6 +181,19 @@ PAGE = """\
     <br><br>
 
     <button onclick="stopAll()">Остановить все помпы</button>
+</div>
+
+<!-- Keyboard visual feedback -->
+<div class="keyboard">
+    <div class="key" id="key-w">W</div>
+    <div class="key" id="key-a">A</div>
+    <div class="key" id="key-s">S</div>
+    <div class="key" id="key-d">D</div>
+    <div class="key" id="key-q">Q</div>
+    <div class="key" id="key-z">Z</div>
+    <div class="key" id="key-e">E</div>
+    <div class="key" id="key-c">C</div>
+    <div class="key" id="key-space">Пробел</div>
 </div>
 
 <script>
@@ -158,6 +216,9 @@ PAGE = """\
 
         // Horizon drawing logic
         ctx.save();
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 150, 0, Math.PI * 2);  // Define the circle boundary
+        ctx.clip();  // Clip the canvas to this circular boundary
         ctx.translate(centerX, centerY);
         ctx.rotate(-roll * Math.PI / 180);
         ctx.translate(-centerX, -centerY);
@@ -165,13 +226,13 @@ PAGE = """\
         ctx.beginPath();
         ctx.arc(centerX, centerY, 150, 0, Math.PI, true);
         ctx.closePath();
-        ctx.fillStyle = '#1E90FF';
+        ctx.fillStyle = '#1E90FF';  // Sky color
         ctx.fill();
 
         ctx.beginPath();
         ctx.arc(centerX, centerY, 150, 0, Math.PI, false);
         ctx.closePath();
-        ctx.fillStyle = '#654321';
+        ctx.fillStyle = '#654321';  // Ground color
         ctx.fill();
 
         ctx.restore();
@@ -199,6 +260,12 @@ PAGE = """\
         }
     }
 
+    // Update depth value
+    function updateDepth(depth) {
+        const depthValue = document.getElementById("depthValue");
+        depthValue.innerText = `${depth} m`;
+    }
+
     setInterval(updateGyroData, 100);
 
     function stopAll() {
@@ -222,12 +289,63 @@ PAGE = """\
 
     document.getElementById('pump1').addEventListener('input', sendPumpData);
     document.getElementById('pump2').addEventListener('input', sendPumpData);
+
+    // Handle key press and visual feedback for control keys
+    document.addEventListener('keydown', (event) => {
+        const key = event.key.toLowerCase();
+        const keyElement = document.getElementById(`key-${key}`);
+
+        if (keyElement) {
+            keyElement.classList.add('active');  // Highlight the pressed key
+
+            // Send control data based on key pressed
+            if (key === 'w' || key === 's' || key === 'a' || key === 'd' || key === 'q' || key === 'z' || key === 'e' || key === 'c') {
+                sendKeyControl(key);  // Function to send the control signal
+            }
+        }
+    });
+
+    document.addEventListener('keyup', (event) => {
+        const key = event.key.toLowerCase();
+        const keyElement = document.getElementById(`key-${key}`);
+
+        if (keyElement) {
+            keyElement.classList.remove('active');  // Remove highlight when key is released
+        }
+    });
+
+    // Function to send control commands based on key press
+    function sendKeyControl(key) {
+        let command = '';
+
+        switch (key) {
+            case 'w': command = 'throttleUp'; break;   // Increase engine power
+            case 's': command = 'throttleDown'; break; // Decrease engine power
+            case 'a': command = 'turnLeft'; break;     // Turn rudder left
+            case 'd': command = 'turnRight'; break;    // Turn rudder right
+            case 'q': command = 'pump1Increase'; break;  // Increase Pump 1 speed
+            case 'z': command = 'pump1Decrease'; break;  // Decrease Pump 1 speed
+            case 'e': command = 'pump2Increase'; break;  // Increase Pump 2 speed
+            case 'c': command = 'pump2Decrease'; break;  // Decrease Pump 2 speed
+            case ' ': command = 'resetAll'; break;      // Reset all settings
+        }
+
+        if (command) {
+            fetch('/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command })
+            });
+        }
+    }
 </script>
 
 </body>
 </html>
 
 """
+
+
 # Define the root directory for static files (like the background image)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), 'static')
 
