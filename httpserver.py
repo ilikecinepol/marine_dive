@@ -5,14 +5,14 @@ from http import server
 from threading import Condition
 import serial
 import json
+import os
 
 from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
 from picamera2.outputs import FileOutput
 
-# Настройка последовательного порта для чтения данных с гироскопа
+# Serial port configuration for reading gyroscope data
 ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
-
 PAGE = """\
 <!DOCTYPE html>
 <html lang="ru">
@@ -25,7 +25,7 @@ PAGE = """\
 
         body {
             font-family: 'Orbitron', sans-serif;
-            background-image: url('/static/scale.jpg');
+            background-image: url('/static/scale.jpg'); /* Path to background image */
             background-size: cover;
             background-position: center;
             margin: 0;
@@ -114,16 +114,16 @@ PAGE = """\
 <h1>MARINE DIVE</h1>
 
 <div class="container">
-    <!-- Видеопоток -->
+    <!-- Video Stream -->
     <div class="video-placeholder">
         <img src="/stream.mjpg" width="640" height="480" alt="Видеопоток" />
     </div>
 
-    <!-- Шкала крена и тангажа -->
+    <!-- Gyroscope canvas -->
     <canvas id="horizonCanvas" width="300" height="300"></canvas>
 </div>
 
-<!-- Элементы управления помпами -->
+<!-- Pump controls -->
 <div class="controls">
     <label for="pump1">Помпа 1:</label>
     <input type="range" id="pump1" min="-100" max="100" step="5" value="0">
@@ -139,61 +139,51 @@ PAGE = """\
 </div>
 
 <script>
-    // Функция для обновления данных гироскопа
     function updateGyroData() {
         fetch('/gyro')
         .then(response => response.json())
         .then(data => {
-            drawHorizon(data.gy, data.gx);  // Обновляем прибор тангажа и крена
+            drawHorizon(data.gy, data.gx);
         });
     }
 
-    // Рисование авиагоризонта с неподвижным кругом и движущейся шкалой тангажа
     function drawHorizon(pitch, roll) {
         const canvas = document.getElementById('horizonCanvas');
         const ctx = canvas.getContext('2d');
-        
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
+
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
 
-        // Размеры горизонта
-        const horizonHeight = 80;
-        const horizonWidth = 150;
-
-        // Рисуем половину круга "море"
+        // Horizon drawing logic
         ctx.save();
         ctx.translate(centerX, centerY);
-        ctx.rotate(-roll * Math.PI / 180);  // Инвертируем крен
+        ctx.rotate(-roll * Math.PI / 180);
         ctx.translate(-centerX, -centerY);
 
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 150, 0, Math.PI, true);  // Половина круга для моря
+        ctx.arc(centerX, centerY, 150, 0, Math.PI, true);
         ctx.closePath();
-        ctx.fillStyle = '#1E90FF';  // Цвет моря (темно-синий)
+        ctx.fillStyle = '#1E90FF';
         ctx.fill();
 
-        // Рисуем половину круга "дно"
         ctx.beginPath();
-        ctx.arc(centerX, centerY, 150, 0, Math.PI, false);  // Половина круга для дна
+        ctx.arc(centerX, centerY, 150, 0, Math.PI, false);
         ctx.closePath();
-        ctx.fillStyle = '#654321';  // Цвет дна (коричневый)
+        ctx.fillStyle = '#654321';
         ctx.fill();
 
         ctx.restore();
-
-        // Рисуем неподвижную белую линию горизонта, движущуюся в зависимости от тангажа (pitch)
-        const offsetY = pitch * 2;  // Смещение по тангажу
-
+        const offsetY = pitch * 2;
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(centerX - horizonWidth, centerY + offsetY);  // Линия вверх-вниз при изменении тангажа
-        ctx.lineTo(centerX + horizonWidth, centerY + offsetY);
+        ctx.moveTo(centerX - 150, centerY + offsetY);
+        ctx.lineTo(centerX + 150, centerY + offsetY);
         ctx.stroke();
 
-        // Шкала тангажа с числами
+        // Draw pitch scale numbers
         for (let i = -90; i <= 90; i += 10) {
             const tickY = centerY + offsetY + i * 2;
             ctx.beginPath();
@@ -201,7 +191,6 @@ PAGE = """\
             ctx.lineTo(centerX + 10, tickY);
             ctx.stroke();
 
-            // Добавляем числа на шкалу тангажа
             if (i % 30 === 0) {
                 ctx.font = '14px Orbitron';
                 ctx.fillStyle = '#ffffff';
@@ -210,7 +199,6 @@ PAGE = """\
         }
     }
 
-    // Обновляем данные гироскопа каждые 100 мс
     setInterval(updateGyroData, 100);
 
     function stopAll() {
@@ -240,7 +228,8 @@ PAGE = """\
 </html>
 
 """
-
+# Define the root directory for static files (like the background image)
+STATIC_DIR = os.path.join(os.path.dirname(__file__), 'static')
 
 class StreamingOutput(io.BufferedIOBase):
     def __init__(self):
@@ -251,7 +240,6 @@ class StreamingOutput(io.BufferedIOBase):
         with self.condition:
             self.frame = buf
             self.condition.notify_all()
-
 
 class StreamingHandler(server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -290,28 +278,54 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
             if ser.in_waiting > 0:
                 try:
                     gyro_data = ser.readline().decode('utf-8').strip()
-                    gx, gy = map(float, gyro_data.split(','))  # Ожидаем два значения
+                    gx, gy = map(float, gyro_data.split(','))  # Expecting two values
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/json')
                     self.end_headers()
                     self.wfile.write(json.dumps({'gx': gx, 'gy': gy}).encode())
                 except Exception as e:
-                    logging.error(f"Ошибка чтения данных гироскопа: {e}")
+                    logging.error(f"Error reading gyroscope data: {e}")
                     self.send_response(500)
                     self.end_headers()
             else:
-                self.send_response(204)  # Нет данных
+                self.send_response(204)  # No content (empty)
                 self.end_headers()
+        elif self.path == '/control':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            data = json.loads(post_data)
+            pump1_speed = data.get('pump1_speed', 0)
+            pump2_speed = data.get('pump2_speed', 0)
+
+            # Send pump1_speed and pump2_speed to Arduino via serial
+            try:
+                ser.write(f'P1:{pump1_speed},P2:{pump2_speed}\n'.encode('utf-8'))
+                self.send_response(200)
+                self.end_headers()
+            except Exception as e:
+                logging.error(f"Error sending pump data: {e}")
+                self.send_response(500)
+                self.end_headers()
+        elif self.path.startswith('/static/'):
+            # Serve static files like images
+            file_path = os.path.join(STATIC_DIR, self.path[8:])
+            if os.path.exists(file_path):
+                with open(file_path, 'rb') as f:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'image/jpeg')
+                    self.end_headers()
+                    self.wfile.write(f.read())
+            else:
+                self.send_error(404, "File Not Found")
         else:
             self.send_error(404)
             self.end_headers()
-
 
 class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-
+# Initialize and configure the Picamera2 object
 picam2 = Picamera2()
 picam2.configure(picam2.create_video_configuration(main={"size": (640, 480)}))
 output = StreamingOutput()
@@ -320,6 +334,7 @@ picam2.start_recording(JpegEncoder(), FileOutput(output))
 try:
     address = ('', 8000)
     server = StreamingServer(address, StreamingHandler)
+    print("Server started on port 8000...")
     server.serve_forever()
 finally:
     picam2.stop_recording()
