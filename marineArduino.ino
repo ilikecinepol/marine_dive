@@ -5,116 +5,95 @@
 MPU6050 mpu;
 int16_t ax, ay, az;
 int16_t gx, gy, gz;
-float alpha = 0.05;  // Коэффициент сглаживания для фильтрации
+float alpha_gyro = 0.05;
 Servo motor;
 
-const int ENA = 3;  // ШИМ для первой помпы
-const int ENB = 5;  // ШИМ для второй помпы
+const int ENA = 3;
+const int ENB = 5;
 const int In1 = 2;
 const int In2 = 4;
 const int In3 = 7;
 const int In4 = 8;
+const int ledPin = 10;
 
 float filtered_gx = 0, filtered_gy = 0, filtered_gz = 0;
-int16_t ax_offset = 0, ay_offset = 0, az_offset = 0;  // Смещения акселерометра
-int16_t gx_offset = 0, gy_offset = 0, gz_offset = 0;  // Смещения гироскопа
+int16_t ax_offset = 0, ay_offset = 0, az_offset = 0;
+int16_t gx_offset = 0, gy_offset = 0, gz_offset = 0;
 
-float pitch = 0, roll = 0;  // Переменные для хранения значений углов
-unsigned long prevTime = 0;  // Переменная для отслеживания времени
+float pitch = 0, roll = 0;
+unsigned long prevTime = 0;
 
 void setup() {
-  Serial.begin(115200);  // Инициализация последовательного порта для связи с Raspberry Pi
-  Wire.begin();          // Инициализация I2C для MPU6050
-  mpu.initialize();      // Инициализация MPU6050
+  Serial.begin(115200);
+  Wire.begin();
+  mpu.initialize();
 
-  // Проверка подключения MPU6050
-  if (mpu.testConnection()) {
-    Serial.println("MPU6050 подключен");
-  } else {
+  if (!mpu.testConnection()) {
     Serial.println("Ошибка подключения к MPU6050");
-    while (1);  // Остановить, если датчик не подключен
+    while (1);
   }
 
-  // Калибровка датчика (установка нулей)
-  calibrateMPU();
+  Serial.println("MPU6050 подключен");
 
-  // Настройка цифрового фильтра (DLPF)
-  mpu.setDLPFMode(6);  // Установка фильтра с частотой 5 Гц
+  calibrateMPU();
+  mpu.setDLPFMode(6);
 
   motor.attach(11);
   motor.writeMicroseconds(2300);
   delay(2000);
   motor.writeMicroseconds(800);
   delay(6000);
+  motor.detach();
 
-  // Настройка выводов для L293N
   pinMode(ENA, OUTPUT);
   pinMode(ENB, OUTPUT);
   pinMode(In1, OUTPUT);
   pinMode(In2, OUTPUT);
   pinMode(In3, OUTPUT);
   pinMode(In4, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, HIGH);
 
-  // Остановка обоих насосов
   stopPump1();
   stopPump2();
 
-  prevTime = millis();  // Инициализация времени
+  prevTime = millis();
 }
 
 void loop() {
-  // Чтение команд для управления помпами через Serial
   if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n');  // Читаем строку до новой строки
+    String input = Serial.readStringUntil('\n');
     if (input.startsWith("P1:")) {
-      int speed1 = input.substring(3).toInt();  // Извлекаем значение для первой помпы
+      int speed1 = input.substring(3).toInt();
       controlPump1(speed1);
     } else if (input.startsWith("P2:")) {
-      int speed2 = input.substring(3).toInt();  // Извлекаем значение для второй помпы
+      int speed2 = input.substring(3).toInt();
       controlPump2(speed2);
     }
   }
 
-  // Чтение данных с гироскопа и акселерометра, корректировка на смещения
   mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
   ax -= ax_offset;
   ay -= ay_offset;
   az -= az_offset;
-  gx -= gx_offset;
-  gy -= gy_offset;
-  gz -= gz_offset;
 
-  // Применение фильтрации данных гироскопа
-  filtered_gx = (alpha * gx) + ((1 - alpha) * filtered_gx);
-  filtered_gy = (alpha * gy) + ((1 - alpha) * filtered_gy);
-  filtered_gz = (alpha * gz) + ((1 - alpha) * filtered_gz);
+  // Углы через акселерометр и арксинус (как в примере)
+  float ax_norm = constrain(ax, -16384, 16384) / 16384.0;
+  float ay_norm = constrain(ay, -16384, 16384) / 16384.0;
 
-  // Масштабируем значения для вывода от -180 до 180 градусов
-  unsigned long currentTime = millis();
-  float dt = (currentTime - prevTime) / 1000.0;  // Вычисляем время, прошедшее с последнего замера
+  if (ax_norm < 0) pitch = 90 - degrees(acos(ax_norm));
+  else pitch = degrees(acos(-ax_norm)) - 90;
 
-  // Интегрирование данных гироскопа для вычисления углов
-  pitch += filtered_gx * dt;
-  roll += filtered_gz * dt;
+  if (ay_norm < 0) roll = 90 - degrees(acos(ay_norm));
+  else roll = degrees(acos(-ay_norm)) - 90;
 
-  // Ограничиваем значения от -180 до 180 градусов
-  if (pitch > 180) pitch -= 360;
-  if (pitch < -180) pitch += 360;
-  if (roll > 180) roll -= 360;
-  if (roll < -180) roll += 360;
-
-  prevTime = currentTime;  // Обновляем время
-
-  // Отправка данных по Serial в диапазоне от -180 до 180
   Serial.print(pitch);
   Serial.print(",");
-  Serial.println(roll);
+  Serial.println(-roll);
 
-  motor.writeMicroseconds(1000);
-  delay(100);  // Частота отправки данных
+  delay(100);
 }
 
-// Калибровка MPU6050 - вычисление смещений
 void calibrateMPU() {
   const int calibration_samples = 1000;
   long ax_sum = 0, ay_sum = 0, az_sum = 0;
@@ -144,20 +123,18 @@ void calibrateMPU() {
 
 void controlPump1(int speed) {
   if (speed == 0) {
-    stopPump1();  // Останавливаем насос, если скорость 0
+    stopPump1();
     return;
   }
-
   if (speed > 0) {
     digitalWrite(In1, LOW);
-    digitalWrite(In2, HIGH);  // Накачка
+    digitalWrite(In2, HIGH);
   } else {
     digitalWrite(In1, HIGH);
-    digitalWrite(In2, LOW);  // Выкачка
+    digitalWrite(In2, LOW);
     speed = -speed;
   }
-
-  analogWrite(ENA, map(speed, 150, 255, 150, 255));  // Скорость от 150 до 255
+  analogWrite(ENA, map(speed, 150, 255, 150, 255));
 }
 
 void controlPump2(int speed) {
@@ -165,16 +142,14 @@ void controlPump2(int speed) {
     stopPump2();
     return;
   }
-
   if (speed > 0) {
     digitalWrite(In3, LOW);
-    digitalWrite(In4, HIGH);  // Накачка
+    digitalWrite(In4, HIGH);
   } else {
     digitalWrite(In3, HIGH);
-    digitalWrite(In4, LOW);  // Выкачка
+    digitalWrite(In4, LOW);
     speed = -speed;
   }
-
   analogWrite(ENB, map(speed, 150, 255, 150, 255));
 }
 
